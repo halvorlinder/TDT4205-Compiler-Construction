@@ -1,0 +1,18 @@
+digraph G {
+    // concentrate=true;
+    
+    rankdir=LR
+
+    node [shape = point] s; 
+    node [shape = circle];
+    node [peripheries=2];
+
+
+    s -> 0
+
+    0 -> 0 [label="b"]
+    1 -> 0 [label="b"]
+    2 -> 0 [label="b"]
+    0 -> 1 [label="a"]
+    1 -> 2 [label="a"]
+}

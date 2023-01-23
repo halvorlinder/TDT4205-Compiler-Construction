@@ -1,0 +1,36 @@
+digraph G {
+    // concentrate=true;
+    
+    rankdir=LR;
+
+    node [shape = point] s; 
+    node [shape = circle];
+
+    s -> 0
+
+    // size="50,5";
+
+    // { rank=same; 0 1 };
+    // { rank=same; 2 3 };
+    // { rank=same; 5 6 };
+    // { rank=same; 7 8 };
+    // { rank=same; 9 10 11 12 };
+    // { rank=same; 15 14 };
+
+    3[peripheries=2]
+
+
+    0 -> 1 [label="g"]
+    0 -> 4 [label="d"]
+    1 -> 2 [label="o"]
+    2 -> 3 [label="\\n"]
+    4 -> 5 [label="x"]
+    4 -> 6 [label="y"]
+    5 -> 7 [label="="]
+    6 -> 7 [label="="]
+    7 -> 8 [label="-"]
+    7 -> 9 [label="[0-9]"]
+    8 -> 9 [label="[0-9]"]
+    9 -> 9 [label="[0-9]"]
+    9 -> 3 [label="\\n"]
+}

@@ -1,0 +1,11 @@
+digraph G {
+    rankdir=LR
+
+    node [shape = point] s; 
+    node [shape = circle];
+
+    s -> 0
+
+    1[peripheries=2]
+    0 -> 1 [label="b"]
+}
