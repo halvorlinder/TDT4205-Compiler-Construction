@@ -1,6 +1,6 @@
 *.txt
 *.svg
 scanner 
-O1/delivery
+*/delivery
 spiral.pdf
 *.tar.gz

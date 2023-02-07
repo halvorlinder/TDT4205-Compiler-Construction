@@ -45,40 +45,37 @@ static void node_print ( node_t *node, int nesting )
 /* Initialize a node with type, data, and children */ 
 void node_init ( node_t *nd, node_type_t type, void *data, uint64_t n_children, ... )
 {
-    /* 
-       TODO: 
-       Initializer function for a syntax tree node 
-       
-       HINT:
-       Initialize the pre-allocated `nd` node with type, data, and children.
-       See include/tree.h for the node_t struct
-       Node has no `symbol` on initialization, so this should be set to NULL.
-       Remember to *allocate* space for the node's children.
-    */
+
+   nd->type = type;
+   nd->data = data;
+   nd->n_children = n_children;
+   nd->symbol = NULL;
+   nd->children = malloc(n_children*sizeof(node_t*));
+
+   va_list valist;
+   va_start(valist, n_children);
+   for (uint64_t i = 0; i < n_children; i++){
+    node_t* child = va_arg(valist, node_t*);
+    nd->children[i] = child;
+   }
+   va_end(valist);
+   
 }
 
 /* Frees the memory owned by the given node, but does not touch its children */
 static void node_finalize ( node_t *discard )
 {
-    /* 
-       TODO: 
-       Remove memory allocated for a single syntax tree node.
-
-       HINT:
-       *Free* all data members owned by this node - including the memory used by the node.
-       Only free the memory occupied by this - do not touch its children.
-    */
+   free(discard->symbol);
+   free(discard->data);
+   free(discard->children);
+   free(discard);
 }
 
 /* Frees the memory owned by the given node, and all its children */
 static void destroy_subtree ( node_t *discard )
 {
-    /* 
-       TODO: 
-       Remove all nodes in the subtree rooted at a node.
-
-       HINT:
-       Destroy entire *trees* instead of single *nodes*.
-       Seems like you can use the `node_finalize` function in some way here...        
-    */
+    for (int c = 0; c< discard->n_children; c++){
+        destroy_subtree(discard->children[c]);
+    }
+    node_finalize(discard);
 }
