@@ -14,6 +14,14 @@ static node_t *simplify_tree(node_t *node);
 static node_t *constant_fold_expression(node_t *node);
 static node_t *replace_for_statement(node_t *for_node);
 
+typedef enum
+{
+    PLUS,
+    MINUS,
+    MULT,
+    DIV
+} operation;
+
 /* External interface */
 void print_syntax_tree()
 {
@@ -103,28 +111,80 @@ static node_t *simplify_unary(node_t *node)
 
 static node_t *simplify_list(node_t *node)
 {
-        if (node->n_children==1)
-            return node;
-        uint64_t num_grandchildren = node->children[0]->n_children;
-        node_t* discard_child = node->children[0];
-        node_t* keep_child = node->children[1];
-        node->children = realloc(node->children, (num_grandchildren+1)*sizeof(node_t*));
-        node->n_children = num_grandchildren + 1;
-        memcpy(node->children, discard_child->children, num_grandchildren*sizeof(node_t*));
-        node->children[num_grandchildren] = keep_child;
-        node_finalize(discard_child);
+    if (node->n_children == 1)
         return node;
+    uint64_t num_grandchildren = node->children[0]->n_children;
+    node_t *discard_child = node->children[0];
+    node_t *keep_child = node->children[1];
+    node->children = realloc(node->children, (num_grandchildren + 1) * sizeof(node_t *));
+    node->n_children = num_grandchildren + 1;
+    memcpy(node->children, discard_child->children, num_grandchildren * sizeof(node_t *));
+    node->children[num_grandchildren] = keep_child;
+    node_finalize(discard_child);
+    return node;
 }
 
-static node_t *simplyfy_optional(node_t *node)
+static node_t *simplify_optional(node_t *node)
 {
-    fprintf(stderr, "%s: %ld\n",node->data, node->n_children);
-    if (node->n_children==0)
+    if (node->n_children == 0)
         return node;
-    node->children = realloc(node->children, ( node->children[0]->n_children )*sizeof(node_t*));
-    memcpy(node->children, node->children[0]->children, (node->children[0]->n_children)*sizeof(node_t*));
-    node_finalize(node->children[0]);
+    node->children = realloc(node->children, (node->children[0]->n_children) * sizeof(node_t *));
+    node->n_children = node->children[0]->n_children;
+    node_t *discard = node->children[0];
+    memcpy(node->children, node->children[0]->children, (node->children[0]->n_children) * sizeof(node_t *));
+    node_finalize(discard);
     return node;
+}
+
+static node_t *simplify_binary_expression(node_t *node, operation op)
+{
+    if (node->children[0]->type != NUMBER_DATA || node->children[1]->type != NUMBER_DATA)
+        return node;
+    node_t *number_data_node = malloc(sizeof(node_t));
+    int64_t *n = malloc(sizeof(int64_t));
+
+    int64_t data1, data2;
+    data1 = (int64_t) * (int64_t *)node->children[0]->data;
+    data2 = (int64_t) * (int64_t *)node->children[1]->data;
+    switch (op)
+    {
+    case PLUS:
+        *n = data1 + data2;
+        break;
+    case MINUS:
+        *n = data1 - data2;
+        break;
+    case MULT:
+        *n = data1 * data2;
+        break;
+    case DIV:
+        *n = data1 / data2;
+        break;
+    default:
+        break;
+    }
+    node_init(number_data_node, NUMBER_DATA, n, 0);
+    destroy_subtree(node);
+    return number_data_node;
+}
+static node_t *simplify_unary_expression(node_t *node, operation op)
+{
+    if (node->children[0]->type != NUMBER_DATA)
+        return node;
+    int64_t data = (int64_t) * (int64_t *)node->children[0]->data;
+    node_t *number_data_node = malloc(sizeof(node_t));
+    int64_t *n = malloc(sizeof(int64_t));
+
+    switch (op)
+    {
+    case MINUS:
+        *n = -data;
+    default:
+        break;
+    }
+    node_init(number_data_node, NUMBER_DATA, n, 0);
+    destroy_subtree(node);
+    return number_data_node;
 }
 
 /* Recursive function to convert a parse tree into an abstract syntax tree */
@@ -139,8 +199,6 @@ static node_t *simplify_tree(node_t *node)
 
     switch (node->type)
     {
-    // TODO: Task 2.1
-    // Eliminate nodes of purely syntactic value.
     // These nodes only have one child, and carry no semantic value.
     case PROGRAM:
         return simplify_unary(node);
@@ -150,14 +208,6 @@ static node_t *simplify_tree(node_t *node)
         return simplify_unary(node);
     case PRINT_ITEM:
         return simplify_unary(node);
-
-    // For nodes that only serve as a wrapper for a (optional) node below,
-    // you may squash the child and take over its children instead.
-
-    // TODO: Task 2.2
-    // Flatten linked list structures.
-    // Any list node with two children, has a list node to the left, and an element to the right.
-    // We return the left list node, but with the right node appended to its list
 
     // Non empty
     case GLOBAL_LIST:
@@ -175,9 +225,9 @@ static node_t *simplify_tree(node_t *node)
 
     // // Possibly empty
     case PARAMETER_LIST:
-        return simplyfy_optional(node);
+        return simplify_optional(node);
     case ARGUMENT_LIST:
-        return simplyfy_optional(node);
+        return simplify_optional(node);
 
     // Do contstant folding, if possible
     // Also prunes expressions that are just wrapping atomic expressions
@@ -213,21 +263,23 @@ static node_t *constant_fold_expression(node_t *node)
 {
     assert(node->type == EXPRESSION);
 
-    // TODO: Task 2.3
-    // Replace expression nodes by their values, if it is possible to compute them now
+    if (node->data == NULL)
+        return simplify_unary(node);
+    if (node->n_children == 1 && !strcmp(node->data, "-"))
+        return simplify_unary_expression(node, MINUS);
+    if (!strcmp(node->data, "+"))
+        return simplify_binary_expression(node, PLUS);
+    if (!strcmp(node->data, "-"))
+        return simplify_binary_expression(node, MINUS);
+    if (!strcmp(node->data, "*"))
+        return simplify_binary_expression(node, MULT);
+    if (!strcmp(node->data, "/"))
+        return simplify_binary_expression(node, DIV);
 
-    // First, expression nodes with no operator, and only one child, are just wrappers for
-    //   NUMBER_DATA, IDENTIFIER_DATA or ARRAY_INDEXING, and can be replaced by its children
-
-    // For expression nodes that are operators, we can only do constant folding if all its children are NUMBER_DATA.
-    // In such cases, the expression node can be replaced with the value of its operator, applied to its child(ren).
-
-    // Remember to free up the memory used by the original node(s), if they get replaced by a new node
     return node;
 }
 
 // Replaces the FOR_STATEMENT with a BLOCK.
-// The block contains varables, setup, and a while loop
 static node_t *replace_for_statement(node_t *for_node)
 {
     assert(for_node->type == FOR_STATEMENT);
@@ -238,48 +290,36 @@ static node_t *replace_for_statement(node_t *for_node)
     node_t *end_value = for_node->children[2];
     node_t *body = for_node->children[3];
 
-    // TODO: Task 2.4
-    // Replace the FOR_STATEMENT node, by instead creating the syntax tree of an equivalent block with a while-statement
-    // As an example, the following statement:
-    //
-    // for i in 5..N+1
-    //     print a[i]
-    //
-    // should become:
-    //
-    // begin
-    //     var i, __FOR_END__
-    //     i := 5
-    //     __FOR_END__ := N+1
-    //     while i < __FOR_END__ begin
-    //         print a[i]
-    //         i := i + 1
-    //     end
-    // end
-    //
-
-    // To aid in the manual creation of AST nodes, you can create named nodes using the NODE macro
-    // As an example, the following creates the
-    // var <variable>, __FOR_END__
-    // part of the transformation
     NODE(end_variable, IDENTIFIER_DATA, strdup(FOR_END_VARIABLE), 0);
     NODE(variable_list, VARIABLE_LIST, NULL, 2, variable, end_variable);
     NODE(declaration, DECLARATION, NULL, 1, variable_list);
     NODE(declaration_list, DECLARATION_LIST, NULL, 1, declaration);
 
-    // An important thing to note, is that nodes may not be re-used
-    // since that will cause errors when freeing up the syntax tree later.
-    // because we want to use a lot of IDENTIFIER_DATA nodes with the same data, we have the macro
     DUPLICATE_VARIABLE(variable);
-    // Now we can use <variable> again, and it will be a new node for the same identifier!
     NODE(init_assignment, ASSIGNMENT_STATEMENT, NULL, 2, variable, start_value);
-    // We do the same whenever we want to reuse <end_variable> as well
     DUPLICATE_VARIABLE(end_variable);
     NODE(end_assignment, ASSIGNMENT_STATEMENT, NULL, 2, end_variable, end_value);
 
-    // TODO: The rest is up to you. Good luck!
-    // Don't fret if this part gets too cumbersome. Try your best
+    uint64_t *one = malloc(sizeof(uint64_t));
+    *one = 1;
+    NODE(one_data, NUMBER_DATA, one, 0);
 
-    // TODO: Instead of returning the original for_node, destroy it, and return your equivalent block
-    return for_node;
+    DUPLICATE_VARIABLE(variable);
+    NODE(increment_expression, EXPRESSION, strdup("+"), 2, variable, one_data);
+    DUPLICATE_VARIABLE(variable);
+    NODE(increment, ASSIGNMENT_STATEMENT, NULL, 2, variable, increment_expression);
+
+    NODE(body_list, STATEMENT_LIST, NULL, 2, body, increment);
+    NODE(while_block, BLOCK, NULL, 1, body_list);
+
+    DUPLICATE_VARIABLE(variable);
+    DUPLICATE_VARIABLE(end_variable);
+    NODE(relation, RELATION, strdup("<"), 2, variable, end_variable);
+    NODE(while_loop, WHILE_STATEMENT, NULL, 2, relation, while_block);
+
+    NODE(statement_list, STATEMENT_LIST, NULL, 3, init_assignment, end_assignment, while_loop);
+    NODE(block, BLOCK, NULL, 2, declaration_list, statement_list);
+
+    node_finalize(for_node);
+    return block;
 }
