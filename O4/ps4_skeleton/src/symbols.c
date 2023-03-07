@@ -26,10 +26,6 @@ static void destroy_string_list(void);
  */
 void create_tables(void)
 {
-    // TODO:
-    //  First use find_globals() to create the global symbol table.
-    //  As global symbols are added, function symbols get their own local symbol tables as well.
-
     find_globals();
     for (int i = 0; i < global_symbols->n_symbols; i++)
     {
@@ -39,13 +35,6 @@ void create_tables(void)
             bind_names(global->function_symtable, global->node->children[2]);
         }
     }
-    // print_tables();
-    // Once all global symols are added, go through all functions bodies.
-    // All references to variables and functions by name, should get pointers to the symbols in the table.
-    // This should performed by bind_names( function symbol table, function body AST node )
-    //
-    // It also handles adding local variables to the local symbol table, and pushing and popping scopes.
-    // A final task performed by bind_names(), is adding strings to the global string list
 }
 
 /* Prints the global symbol table, and the local symbol tables for each function.
@@ -127,9 +116,6 @@ static void find_globals(void)
             }
         }
     }
-
-    // TODO: Create symbols for all global defintions (global variables, arrays and functions), and add them to the global symbol table
-    // Functions can also get their local symbol tables created here, and symbols for all its parameters
 }
 
 static void bind_children(symbol_table_t *local_symbols, node_t *node)
@@ -146,10 +132,6 @@ static void bind_children(symbol_table_t *local_symbols, node_t *node)
  */
 static void bind_names(symbol_table_t *local_symbols, node_t *node)
 {
-    // TODO: Implement bind_names, doing all the things described above
-    // Tip: See symbol_hashmap_init () in symbol_table.h, to make new hashmaps for new scopes.
-    // Remember the symbol_hashmap_t's backup pointer, allowing you to make linked lists.
-    // printf("%d\n", node->type);
     switch (node->type)
     {
     case BLOCK:
@@ -188,7 +170,6 @@ static void bind_names(symbol_table_t *local_symbols, node_t *node)
     }
     case STRING_DATA:
     {
-        // printf("YO %d\n", node->type);
         uint64_t *index = malloc(sizeof(uint64_t));
         *index = add_string(node->data);
         node->data = index;
@@ -210,7 +191,6 @@ static void print_symbol_table(symbol_table_t *table, int nesting)
 {
     if (table == NULL)
         return;
-    // TODO: Output the given symbol table
     for (int i = 0; i < table->n_symbols; i++)
     {
         indent(nesting);
@@ -218,14 +198,11 @@ static void print_symbol_table(symbol_table_t *table, int nesting)
         if (nesting == 0)
             print_symbol_table(table->symbols[i]->function_symtable, 1);
     }
-
-    // TIP: Use SYMBOL_TYPE_NAMES[ my_sybmol->type ] to get a human readable string for each symbol type
 }
 
 /* Frees up the memory used by the global symbol table, all local symbol tables, and their symbols */
 static void destroy_symbol_tables(void)
 {
-    // TODO: Implement cleanup. All symbols in the program are owned by exactly one symbol table.
     destroy_symbol_tables_internal(global_symbols);
 }
 
@@ -248,8 +225,6 @@ static void destroy_symbol_tables_internal(symbol_table_t * table)
  */
 static size_t add_string(char *string)
 {
-    // TODO: Write a helper function you can use during bind_names(),
-    // to easily add a string into the dynamically growing string_list
     if (string_list_capacity == string_list_len)
     {
         uint64_t new_capacity = string_list_capacity == 0 ? 1 : string_list_capacity * 2;
@@ -264,9 +239,6 @@ static size_t add_string(char *string)
 /* Prints all strings added to the global string list */
 static void print_string_list(void)
 {
-    // TODO: Implement printing of the string list like so:
-    // 0: "string 1"
-    // 1: "some other string"
     for (int i = 0; i < string_list_len; i++)
     {
         printf("%d: %s\n", i, string_list[i]);
@@ -276,7 +248,6 @@ static void print_string_list(void)
 /* Frees all strings in the global string list, and the string list itself */
 static void destroy_string_list(void)
 {
-    // TODO: Called during cleanup, free strings, and the memory used by the string list itself
     for (int i = 0; i<string_list_len; i++){
         free(string_list[i]);
     }
