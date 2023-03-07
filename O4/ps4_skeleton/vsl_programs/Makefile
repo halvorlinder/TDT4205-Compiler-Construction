@@ -8,7 +8,7 @@ PS4_EXAMPLES := $(patsubst %.vsl, %.symbols, $(wildcard ps4-symbols/*.vsl))
 
 .PHONY: all ps2 ps2-graphviz ps3 ps3-graphviz ps4 clean ps2-check
 
-all: ps2 ps3
+all: ps2 ps3 ps4
 
 ps2: $(PS2_EXAMPLES)
 ps2-graphviz: $(PS2_GRAPHVIZ)
