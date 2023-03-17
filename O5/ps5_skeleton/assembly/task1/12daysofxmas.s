@@ -26,48 +26,45 @@ main:
     pushq %rbp
     movq %rsp, %rbp
 
-    /*
-        TODO: Task 1 - Put your code here.
+    movq $1, %r12          # Outer loop counter 
+outer_loop:
+    cmpq $13, %r12                      # 13th iteration? 
+    jge outer_loop_end              
 
-        Your task: 
-        Implement a GNU Assembly program that prints a alightly modified version of the "Twelve Days of Christmas" song.
-        Instead of "first day, second day" or "1st day, 2nd day" etc, your program may output "On day N of Christmas my true love gave to me".
-        This song is cumulative - each day will include the gifts of every previous day.
-        (i.e. day 1 will include only a partridge, while day 2 will include two turtle doves AND a partridge).
-        Use printf to output the lyrics of the song to terminal.
-        A suggestion for the first lines of the output is added below.
+    movq %r12, %rsi         # Load count into arg2
+    movq $intro, %rdi       # Load intro string into arg 1
+    call printf             # Print
+
+    movq $1, %r13           # Inner loop counter
+inner_loop:
+    cmpq %r12, %r13         # Looped over all days?
+    jge inner_loop_end              
+    movq %r13, %rsi         # Load inner count into arg2
+    movq $lines, %rdi               # Reading address of lines pointer
+    dec %r13                        # Offset day number by one
+    movq (%rdi, %r13, 8), %rdi      # Read nth string
+    inc %r13                        # Reset inner counter
+    call printf             # Print 
+    inc %r13                # Increment inner count
+    jmp inner_loop          
+inner_loop_end:
+    cmpq $1, %r12           # Check for first day, and skip "and" part
+    je final_print
+    movq $and_s, %rdi       # Load and into arg 1
+    call printf             # Print
+final_print:
+    movq %r13, %rsi         # Load arg 2
+    movq $lines, %rdi               # Reading address of lines pointer
+    dec %r13                        # Offset day number by one
+    movq (%rdi, %r13, 8), %rdi      # Read nth string
+    call printf                     # Print 
 
 
-        HINTS:
-        - The registers %rdi and %rsi are used for the first two arguments in a function call (like printf).
-        - Some registers are overwritten by functions (including printf!) This includes %rax, %rbx, %rcx, %rdx, %rdi, %rsi, %rbp, %rsp, and %r8-r15.
-        - The order of comparisons are (for some reason) reversed! This means that cmp %r8, %r9 will compare r9 vs r8.
-        - Create a debug helper string that you can call with printf for slightly easier debugging.
-        - Consult the examples in (../examples/) for inspiration. Make them with `make`.
-        - Use a cheat sheet like https://flint.cs.yale.edu/cs421/papers/x86-asm/asm.html or https://cs.brown.edu/courses/cs033/docs/guides/x64_cheatsheet.pdf
-        - Compile this with `make` once finished.
+    inc %r12                # Increment outer counter
+    movq $10, %rdi          # Load \n into arg 1
+    call putchar            # Print newline
+    jmp outer_loop
+outer_loop_end:    
 
-
-        BONUS POINTS (Can only be exchanged for bragging rights)
-        - Use putchar to easily create new lines so that the finished song doesn't become a giant wall of text.
-        - Make the song include "and" before the last line - i.e., "AND 1 partridge in a pear tree" - in every verse except the first.
-
-
-        SUGGESTED OUTPUT:
-        On day 1 of Christmas my true love sent to me
-        1 partridge in a pear tree
-
-        On day 2 of Christmas my true love sent to me
-        2 turtle doves
-        and 1 partridge in a pear tree
-
-        On day 3 of Christmas my true love sent to me
-        3 french hens
-        2 turtle doves
-        and 1 partridge in a pear tree
-
-        ...
-    */
-
-    leave
-    ret
+    leave                   # Done with main: reverting pointers and pop from stack 
+    ret                     # Return from main
