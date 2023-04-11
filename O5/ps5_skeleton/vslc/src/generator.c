@@ -53,17 +53,6 @@ void generate_program(void)
 
     generate_functions();
 
-    // TODO: (Part of 2.3)
-    // For each function in global_symbols, generate it using generate_function ()
-
-    // TODO: (Also part of 2.3)
-    // In VSL, the topmost function in a program is its entry point.
-    // We want to be able to take parameters from the command line,
-    // and have them be sent into the entry point function.
-    //
-    // Due to the fact that parameters are all passed as strings,
-    // and passed as the (argc, argv)-pair, we need to make a wrapper for our entry function.
-    // This wrapper handles string -> int64_t conversion, and is already implemented.
     generate_safe_print();
     generate_main(main_symbol);
 }
@@ -78,7 +67,6 @@ static void generate_stringtable(void)
     // This string is used by the entry point-wrapper
     DIRECTIVE("errout: .asciz \"%s\"", "Wrong number of arguments");
 
-    // TODO 2.1: Print all strings in the program here, with labels you can refer to later
     for (int i = 0; i < string_list_len; i++)
     {
         DIRECTIVE("string%d: .asciz %s", (i), (string_list[i]));
@@ -88,9 +76,6 @@ static void generate_stringtable(void)
 /* Prints .zero entries in the .bss section to allocate room for global variables and arrays */
 static void generate_global_variables(void)
 {
-    // TODO 2.2: Generate a section where global variables and global arrays can live
-    // Give each a label you can find later, and the appropriate size.
-    // Remember to mangle the name in some way, to avoid collisions if a variable is called e.g. "main"
     DIRECTIVE(".section .bss");
     DIRECTIVE(".align 8");
     for (int i = 0; i < global_symbols->n_symbols; i++)
@@ -113,6 +98,7 @@ static void generate_functions(void)
         symbol_t *symbol = global_symbols->symbols[i];
         if (symbol->type == SYMBOL_FUNCTION)
         {
+            // find the index of the main function and set it globally
             if (main)
             {
                 main = 0;
@@ -129,10 +115,12 @@ static void generate_function(symbol_t *function)
     DIRECTIVE(".%s:", (function->name));
     PUSHQ(RBP);
     MOVQ(RSP, RBP);
+    // Push the register args to the stack
     for (int i = 0; i < MIN(NUM_REGISTER_PARAMS, function->node->children[1]->n_children); i++)
     {
         PUSHQ(REGISTER_PARAMS[i]);
     }
+    // Allocate space on stack for the local variables 
     for (int i = 0; i < function->function_symtable->n_symbols; i++)
     {
         symbol_t *symbol = function->function_symtable->symbols[i];
@@ -142,16 +130,11 @@ static void generate_function(symbol_t *function)
         }
     }
     generate_statement(function, function->node->children[2]);
-    // MOVQ(RBP, RSP);
-    // POPQ(RBP);
     EMIT("leave");
     EMIT("ret");
-    // TODO: 2.3
-    // TODO: 2.3.1 Do the prologue, including call frame building and parameter pushing
-    // TODO: 2.4 the function body can be sent to generate_statement()
-    // TODO: 2.3.2
 }
 
+//Calculates the offset of a local variable or parameter relative to rbp
 static int64_t bp_offset(symbol_t *function, symbol_t *identifier)
 {
     if (identifier->sequence_number >= NUM_REGISTER_PARAMS && identifier->type == SYMBOL_PARAMETER)
@@ -161,8 +144,8 @@ static int64_t bp_offset(symbol_t *function, symbol_t *identifier)
     else
     {
         return identifier->type == SYMBOL_PARAMETER || FUNC_PARAM_COUNT(function) <= NUM_REGISTER_PARAMS
-                   ? - REG_SIZE * (identifier->sequence_number + 1)
-                   : - REG_SIZE * (identifier->sequence_number - (FUNC_PARAM_COUNT(function) - NUM_REGISTER_PARAMS) + 1);
+                   ? -REG_SIZE * (identifier->sequence_number + 1)
+                   : -REG_SIZE * (identifier->sequence_number - (FUNC_PARAM_COUNT(function) - NUM_REGISTER_PARAMS) + 1);
     }
 }
 
@@ -170,6 +153,7 @@ static void generate_function_call(symbol_t *function, node_t *call)
 {
     symbol_t *called_func = call->children[0]->symbol;
     uint64_t num_args = FUNC_PARAM_COUNT(called_func);
+    //Push the arguments that dont fit in registers to stack 
     for (int i = num_args - 1; i >= NUM_REGISTER_PARAMS; i--)
     {
         node_t *arg = call->children[1]->children[i];
@@ -188,6 +172,7 @@ static void generate_function_call(symbol_t *function, node_t *call)
             break;
         }
     }
+    // Place arguments in registers
     for (int i = 0; i < MIN(num_args, NUM_REGISTER_PARAMS); i++)
     {
         node_t *arg = call->children[1]->children[i];
@@ -210,6 +195,7 @@ static void generate_function_call(symbol_t *function, node_t *call)
     EMIT("call .%s", called_func->name);
 }
 
+//Pushes the value of an identifier to stack
 static void push_identifier(symbol_t *function, symbol_t *identifier)
 {
     switch (identifier->type)
@@ -228,21 +214,24 @@ static void push_identifier(symbol_t *function, symbol_t *identifier)
     PUSHQ(RAX);
 }
 
+//Pushes a constant to the stack
 static void push_constant(node_t *number_data)
 {
-    EMIT("movq $%d, %s", *(int*)number_data->data, RAX);
+    EMIT("movq $%d, %s", *(int *)number_data->data, RAX);
     PUSHQ(RAX);
 }
 
+// Places the value of an identifier in a register
 static void get_identifier(symbol_t *function, symbol_t *identifier, const char *reg)
 {
     int64_t offset = bp_offset(function, identifier);
     EMIT("movq %ld(%s), %s", offset, RBP, reg);
 }
 
+// Places a constant in a register
 static void get_constant(node_t *number_data, const char *reg)
 {
-    EMIT("movq $%ld, %s", *(int*)number_data->data, reg);
+    EMIT("movq $%ld, %s", *(int *)number_data->data, reg);
 }
 
 static void push_dummy()
@@ -250,15 +239,16 @@ static void push_dummy()
     PUSHQ("$0");
 }
 
+// Overwrites the value of an identifier
 static void write_identifier(symbol_t *function, symbol_t *identifier, const char *reg)
 {
     int64_t offset = bp_offset(function, identifier);
     EMIT("movq %s,%ld(%s)", reg, offset, RBP);
 }
 
+//Recursively genereate expression evaluation
 static void generate_expression(symbol_t *function, node_t *expression)
 {
-    // TODO: 2.4.1
     node_type_t type = expression->type;
     switch (type)
     {
@@ -290,7 +280,9 @@ static void generate_expression(symbol_t *function, node_t *expression)
             PUSHQ(RAX);
             return;
         }
-        if (strcmp(operator, "-") == 0 && expression->n_children==1){
+        // Unary minus
+        if (strcmp(operator, "-") == 0 && expression->n_children == 1)
+        {
             generate_expression(function, expression->children[0]);
             POPQ(R10);
             MOVQ("$0", RAX);
@@ -340,7 +332,6 @@ static void generate_safe_print()
 
 static void generate_assignment_statement(symbol_t *function, node_t *statement)
 {
-    // TODO: 2.4.2
     node_t *left_side = statement->children[0];
     generate_expression(function, statement->children[1]);
     POPQ(RAX);
@@ -400,18 +391,17 @@ static void generate_print_statement(symbol_t *function, node_t *statement)
     }
     MOVQ("$10", RDI);
     EMIT("call putchar");
-    // TODO: 2.4.4
 }
 
-static void generate_return_statement(symbol_t* function, node_t *statement)
+static void generate_return_statement(symbol_t *function, node_t *statement)
 {
+    //evaluating the expression already puts the value in RAX, so no need to do anything else
     generate_expression(function, statement->children[0]);
 }
 
 /* Recursively generate the given statement node, and all sub-statements. */
 static void generate_statement(symbol_t *function, node_t *node)
 {
-    // TODO: 2.4
     node_type_t type = node->type;
     switch (type)
     {
